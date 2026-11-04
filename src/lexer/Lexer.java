@@ -265,6 +265,39 @@ public class Lexer {
             column++;
             return new SeparatorToken(Separator.CLOSE_BRACE, startLine, startColumn);
           }
+          case '&' -> {
+            column++;
+            return new OperatorToken(Operator.AND, startLine, startColumn);       
+          }
+          case '|' -> {
+            lookahead = pr.read();
+
+            if (lookahead == '|') {
+              column += 2;
+              return new OperatorToken(Operator.LOGICAL_OR, startLine, startColumn);
+            } else {
+              column++;
+              pr.unread(lookahead);
+              return new OperatorToken(Operator.OR, startLine, startColumn);
+            }
+
+          }
+          case '&' -> {
+            lookahead = pr.read();
+
+            if (lookahead == '&') {
+              column += 2;
+              return new OperatorToken(Operator.LOGICAL_AND, startLine, startColumn);
+            } else {
+              column++;
+              pr.unread(lookahead);
+              return new OperatorToken(Operator.AND, startLine, startColumn);
+            }
+
+          }
+
+
+
 
           default -> throw new IOException(
               "Unrecognized character '" + peek + "' at " + startLine + ":" + startColumn

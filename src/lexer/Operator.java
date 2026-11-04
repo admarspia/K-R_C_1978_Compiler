@@ -19,7 +19,13 @@ public enum Operator {
     SHIFT_LEFT("<<"),
     SHIFT_RIGHT(">>"),
     INCREMENT("++"),
-    DECREMENT("--");
+    DECREMENT("--"),
+
+    AND("&"),
+    OR("|"),
+
+    LOGICAL_AND("&&"),
+    LOGICAL_OR("||");
 
     private final String lexeme;
 
