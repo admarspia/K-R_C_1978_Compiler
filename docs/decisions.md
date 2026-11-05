@@ -160,49 +160,22 @@ recovery (synchronizing on `;` and `}`) and a shared error list across phases.
 
 ---
 
-## D6. Machine model: integer and long widths
 
-**Status:** Active
+## D6 amendment (2026-11-04): constant typing
 
-**Decision:** The target model is:
+Under the D6 model (int and long both 32 bits), the rules from A.2.4.1 become:
 
-| Type   | Width   |
-|--------|---------|
-| char   | 8 bits  |
-| short  | 16 bits |
-| int    | 32 bits |
-| long   | 32 bits |
-| float  | 32 bits |
-| double | 64 bits |
+| Constant form          | Value range                    | Type and result                      |
+|------------------------|--------------------------------|--------------------------------------|
+| Decimal                | 0 to 2147483647                | int                                  |
+| Decimal                | above 2147483647               | error: integer constant too large    |
+| Octal or hex           | 0 to 0xFFFFFFFF                | int; values above 0x7FFFFFFF wrap to negative (two's complement) |
+| Octal or hex           | above 0xFFFFFFFF               | error: integer constant too large    |
+| Any, with `l` or `L`   | same limits as above           | long                                 |
 
-Verify against the table in A.2.6. As recalled, these match the IBM 370 and
-Interdata 8/32 columns.
-
-Constant rules under this model:
-- A decimal constant above 2147483647 is an error: "integer constant too large".
-- An octal or hex constant above 0xFFFFFFFF is an error: "integer constant too large".
-- A trailing `l` or `L` gives the constant type long. It has the same width as int,
-  so the value range is unchanged.
-- The lexer stores the numeric value in a 64-bit Java integer, so it can check the
-  range before reporting an error.
-
-**Reasons**
-- C2: A.2.4.2 explicitly allows int and long to be identical on some machines, so
-  this model is within the language.
-- C1 and C6: one integer width for int and long keeps the type checker, conversions
-  and code generation simpler in the early stages.
-- 32-bit int is a natural fit for the modern machines you are likely to target.
-
-**Rejected**
-- 16-bit int, 32-bit long (PDP-11): most "original", but 16-bit arithmetic is awkward
-  to generate on a modern CPU, and many book programs assume more range.
-- 32-bit int, 64-bit long (modern LP64): further from the book's machines, and it
-  brings a width the book never describes.
-- 36-bit (Honeywell 6000): impractical on modern hardware.
-
-**Revisit when:** the code-generation target is chosen. If long becomes 64 bits, the
-"too large" thresholds for decimal constants change, and a decimal constant above
-2147483647 becomes a valid long.
+Reason: A.2.4.1 makes an octal or hex constant long only when it exceeds the largest
+unsigned integer, so values between the largest signed and the largest unsigned int
+are still int.
 
 ---
 
@@ -318,3 +291,259 @@ The limit is defined as one named constant in one place.
 
 **Revisit when:** a book program relies on truncated names being equal, or you add
 support for linking against other C code.
+
+## D11. Plain `char` signedness  (CONFIRMED 2026-11-04)
+
+**Status:** Active. Confirmed by A.6.1.
+
+**Decision:** Plain `char` is signed, ranging from -128 to 127. A character
+constant with an octal escape is sign-extended: `'\377'` is -1.
+
+**Reasons**
+- A.6.1: char signedness is machine-dependent; the PDP-11 sign-extends, and the
+  book's own example gives `'\377'` the value -1.
+- The standard character set is always non-negative, so ordinary text is unaffected.
+
+**Revisit when:** a book program assumes unsigned char behavior.
+
+
+---
+
+## D12. Distinct types, even when widths are equal
+
+**Status:** Active
+
+**Decision:** short, int and long are three distinct types in the compiler's type
+system, as are float and double, even where D6 gives two of them the same width
+(int and long are both 32 bits).
+
+**Reasons**
+- A.4 allows an implementation to make them equivalent, but doesn't require it.
+- C6: with distinct types, moving long to 64 bits later changes one table entry, and
+  not the type checker or the symbol table.
+- Pointer and function types that mention long stay different from those that
+  mention int, as the language's type rules expect.
+
+**Rejected**
+- Treat long as an alias of int under D6: simpler today, but it makes the 64-bit
+  switch a rewrite and hides type errors.
+
+**Revisit when:** never, unless the type system is redesigned.
+
+---
+
+## D13. `register` is a hint
+
+**Status:** Active
+
+**Decision:** `register` is accepted wherever the book allows it. In stage 1 and 2
+a register variable is allocated like an automatic one. Rules the book attaches to
+register variables are checked by the semantic phase (verify them in sections 7
+and 8).
+
+**Reasons**
+- A.4: storage in a register is "if possible", so it is a hint and not a guarantee.
+- C1: register allocation is an optimization, and belongs to a later stage.
+
+**Rejected**
+- Real register allocation in v1: large work for no change in program meaning.
+- Reject `register`: breaks book programs that use it.
+
+**Revisit when:** you add an optimizer or a register allocator.
+
+---
+
+## D14. Grammar notation
+
+**Status:** Active
+
+**Decision:** The grammar is written in plain-text EBNF using the mapping in
+`grammar.md` ("Grammar Notation"). The `{ ... }` repetition form is an extension,
+allowed only as a mechanical rewrite of a recursive book rule, and marked with the
+rule it replaces.
+
+**Reasons**
+- C3: one notation, written once, keeps every rule consistent and testable.
+- The book's italic and bold have no plain-text form, and the mapping is a
+  one-to-one translation.
+
+**Rejected**
+- Reproduce the book's typography with HTML or LaTeX: harder to write and diff.
+- Use `{ }` freely: it would hide differences between your grammar and the book's.
+
+**Revisit when:** the parser design needs a different shape, such as removing left
+recursion. Record that as a separate, labeled transformation.
+
+---
+
+## D15. `unsigned long` is not supported
+
+**Status:** Active
+
+**Decision:** `unsigned long` is rejected by the semantic phase (declaration error:
+"unsigned long is not supported"). `unsigned` means `unsigned int`.
+
+**Reasons**
+- A.4 says the PDP-11 does not support unsigned long.
+- A.6.6 has no rule for combining unsigned long with other types: read literally, any
+  operand that is long forces the result to plain long, which would silently change
+  the signedness.
+- C1: it removes a corner of the conversion rules for no loss of the book's programs.
+
+**Rejected**
+- Support it with my own extra conversion rule: an invention the book does not make.
+- Support it using the literal A.6.6 rule: gives surprising results.
+
+**Revisit when:** a book program needs unsigned long, or after the book's section 8
+declarations are read, if they treat it differently.
+
+---
+
+## D16. Float to integer conversion
+
+**Status:** Active
+
+**Decision:** Converting a floating value to an integral type truncates toward zero.
+If the value does not fit the destination, the result is undefined, as in A.6.3.
+
+**Reasons**
+- A.6.3 says the direction of truncation is machine-dependent, so the compiler must
+  pick one.
+- Truncation toward zero is what nearly every instruction set and language does,
+  so it is the least surprising choice.
+- C3: one fixed rule is testable.
+
+**Rejected**
+- Round to nearest: not what the book's machines are described as doing.
+- Define out-of-range results: no benefit, and the book leaves them undefined.
+
+**Revisit when:** the code-generation target is chosen.
+
+## D17. Expression grammar is layered by precedence
+
+**Status:** Active
+
+**Decision:** The expression grammar has one rule per precedence level (15 levels,
+see `grammar.md`), instead of copying the book's ambiguous rules. Using `{ }` for
+left-associative levels is part of this transformation and extends D14.
+
+**Reasons**
+- A.7 says precedence is the order of the subsections, so the book's grammar needs
+  that outside information to be unambiguous.
+- C6: a layered grammar maps directly to either recursive descent or precedence
+  climbing, and the parser needs no extra tables.
+- C3: each level is a separate rule with its own tests.
+
+**Rejected**
+- Copy the book's rules and resolve ambiguity in the parser with a table: works, but
+  the grammar document would no longer be a complete definition of the language.
+
+**Revisit when:** the parser design is chosen. A precedence-climbing parser may read
+the table in `grammar.md` instead; the grammar stays the specification either way.
+
+---
+
+## D18. Compound assignment operators are single tokens
+
+**Status:** Active. Restriction of the book (verify wording of A.7.14).
+
+**Decision:** `+=`, `-=`, `*=`, `/=`, `%=`, `>>=`, `<<=`, `&=`, `^=` and `|=` are each
+one token. The spaced form `x + = 1` is rejected, because `+` followed by `=` is not
+a valid expression.
+
+**Reasons**
+- A.7.14 says the two parts "are separate tokens", which, read literally, allows
+  blanks between them.
+- C1 and C6: one token per operator means the parser and AST carry a single
+  operator each, and no adjacency check is needed.
+- A.2's longest-match rule already produces single tokens for `==`, `<=`, `>>` and
+  the rest, so this is consistent.
+- C2 costs almost nothing: spaced compound operators are essentially never written.
+
+**Rejected**
+- Lex as two tokens and let the parser pair them: faithful, but it pushes a
+  lexical decision into the grammar, and adds a rule about adjacency.
+- Let the lexer merge `+` and `=` across white space: needs unbounded lookahead
+  through blanks and comments, beyond what a pushback reader gives.
+
+**Revisit when:** a book program uses a spaced compound operator.
+
+---
+
+## D19. Evaluation order
+
+**Status:** Active
+
+**Decision:** The book leaves the order undefined, so the compiler picks one:
+- Operands of binary operators and arguments of calls are evaluated left to right.
+- `&&`, `||`, `?:` and `,` follow A.7.11 to A.7.15 exactly.
+- The compiler does not rearrange `*` `+` `&` `|` `^` in stages 1 and 2.
+- How arguments are passed is the code generator's concern; evaluating left to right
+  into temporaries is compatible with pushing them in reverse.
+
+**Reasons**
+- A.7 allows any order, so a fixed order is always correct.
+- C3: deterministic output makes expression tests exact.
+- A later optimizer may use the freedom the book grants (A.7: rearrangement).
+
+**Rejected**
+- Leave unspecified: untestable, and varies with the implementation.
+- Right to left for arguments: matches some old compilers, but makes behavior depend
+  on a stack convention.
+
+**Revisit when:** an optimizer is added.
+
+---
+
+## D20. Machine-dependent arithmetic
+
+**Status:** Active
+
+**Decision:** Choices where A.6 and A.7 say "machine-dependent":
+
+| Area                          | Choice                                                         |
+|-------------------------------|----------------------------------------------------------------|
+| Integer overflow              | wraps in two's complement, no check (A.7: existing C ignores it) |
+| Division and `%` by zero      | in a constant expression: compile error; at run time: not checked, host behavior |
+| Integer division, negatives   | truncates toward zero; remainder has the sign of the dividend  |
+| Right shift                   | arithmetic for signed left operands, logical for unsigned (A.7.5) |
+| Shift count negative or >= width | undefined; a constant count out of range gives a warning   |
+| Floating-point exceptions     | not handled; host behavior                                     |
+
+**Reasons**
+- Every row matches what the book says its machines do, or what A.7 allows.
+- C3: each is a testable rule, and none needs run-time checks.
+- Consistent with D16 (float to integer truncates toward zero).
+
+**Rejected**
+- Run-time checks for overflow or divide by zero: not in the book, and a code
+  generation cost with no language benefit.
+- Logical right shift for signed values: allowed ("may be"), but A.7.5 says
+  arithmetic is what the PDP-11 does.
+
+**Revisit when:** the code-generation target is chosen.
+
+---
+
+## D21. Pointer and integer mixing
+
+**Status:** Active
+
+**Decision:** The following are accepted, and each produces a warning ("nonportable
+conversion"), except where the integer is the constant 0:
+- assigning an integer to a pointer, or a pointer to an integer,
+- assigning a pointer to a pointer of another type (pure copy),
+- comparing a pointer with an integer.
+
+Assigning or comparing the constant 0 with a pointer is silent, and 0 is the null
+pointer (A.7.14, A.7.7). Arithmetic combinations A.7.4 does not allow are errors.
+
+**Reasons**
+- A.7.14 says compilers allow these copies, and book programs may depend on it (C4).
+- C5: a warning flags the nonportable use without breaking fidelity.
+
+**Rejected**
+- Reject all: breaks fidelity and some book programs.
+- Accept silently: hides errors the book itself calls nonportable.
+
+**Revisit when:** a book program produces a warning that is clearly a false alarm.

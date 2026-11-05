@@ -66,3 +66,45 @@ do while switch case default entry
 - Type array of char, static storage, NUL appended.
 - `\"` for a quote. A backslash followed by newline is ignored.
 - All strings are distinct, even if written identically.
+
+## 2.6 Operators and separators (derived from A.7; check against A.8, A.9, A.18)
+
+Longest match applies (A.2). 21 multi-character lexemes:
+
+| Lexemes                                       | Role                                    |
+|-----------------------------------------------|-----------------------------------------|
+| `++` `--`                                     | prefix and postfix increment, decrement |
+| `->`                                          | member access through a pointer         |
+| `<<` `>>`                                     | shifts                                  |
+| `<=` `>=` `==` `!=`                           | relational and equality                 |
+| `&&` `||`                                     | logical                                 |
+| `+=` `-=` `*=` `/=` `%=` `>>=` `<<=` `&=` `^=` `|=` | compound assignment (D18)         |
+
+24 single-character lexemes:
+
+| Lexeme | Roles (the parser decides)                                                 |
+|--------|----------------------------------------------------------------------------|
+| `+`    | addition (no unary form)                                                   |
+| `-`    | subtraction, negation                                                      |
+| `*`    | multiplication, indirection, pointer declarator                            |
+| `&`    | bitwise AND, address-of                                                    |
+| `/` `%` `\|` `^` | division, remainder, bitwise OR, bitwise XOR                     |
+| `~` `!`| one's complement, logical negation                                         |
+| `<` `>`| relational                                                                 |
+| `=`    | assignment, initializer                                                    |
+| `?` `:`| conditional; `:` also in `case` and labels (A.9)                           |
+| `.`    | member access                                                              |
+| `,`    | comma operator, separator in argument, initializer and declarator lists    |
+| `(` `)`| grouping, call, cast, declarators                                          |
+| `[` `]`| subscript, array declarators                                               |
+| `{` `}`| blocks, initializer lists, struct and union bodies                         |
+| `;`    | statement and declaration terminator                                       |
+
+Lexer notes:
+- One lexeme can have several roles (`*`, `&`, `-`, `,`, `:`). The lexer emits one
+  token; the parser decides from position.
+- `.` followed by a digit starts a floating constant (A.2.4.4); otherwise it is
+  member access.
+- `a+++++b` lexes as `a ++ ++ + b` (longest match) and fails in the parser.
+- `#` (control lines, A.12) is not in this table.
+- `=+`-style forms: see A.17 (not yet read).
