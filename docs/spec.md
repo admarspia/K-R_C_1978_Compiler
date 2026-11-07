@@ -1,123 +1,102 @@
-# Decision Log
+# Language Specification: Overview and Scope
 
-Format: decision, reasons, rejected options, revisit trigger.
-Constraints used: C1 finishable solo, C2 fidelity to original C, C3 testable rules,
-C4 book programs run, C5 good error messages, C6 doesn't block later phases.
+The language is K&R C, as defined by Appendix A (C Reference Manual) of
+The C Programming Language, 1st edition, 1978 (D1). This file gives the scope, the
+stages and the map of the other documents. The rules themselves are in the documents
+listed in section 1.
 
-Date: 2026-11-04
+Last updated: 2026-11-06
 
----
+## 1. Document map
 
-## D1. Target language: K&R C (1978)
+| Document              | Contents                                                              |
+|-----------------------|-----------------------------------------------------------------------|
+| `constraints.md`      | C1 to C7: what decisions are judged against                           |
+| `decisions.md`        | D1 to D32: every choice, with reasons and rejected options            |
+| `lexical.md`          | tokens, constants, strings, operators, errors L01 to L13, warning W01 |
+| `grammar.md`          | EBNF for the whole language, precedence table                         |
+| `semantics.md`        | storage classes, types, conversions, expressions, declarations, statements, scope |
+| `symbol-table.md`     | design of the symbol table (no code)                                  |
+| `test-vectors.md`     | cases for every rule                                                  |
 
-**Decision:** The language is C as described in The C Programming Language,
-1st edition (Kernighan & Ritchie, 1978). Appendix A is the reference.
+Reading order for implementers: `lexical.md`, `grammar.md`, `semantics.md`,
+`symbol-table.md`. Check `decisions.md` for any rule marked with a D-number.
 
-**Reasons**
-- Best fit for C2 and C4: it is the original, and the book's programs target it.
-- A complete reference exists (Appendix A), so the spec has a source of truth.
-- Medium complexity: no prototypes, `void`, `const` or `enum` to handle.
+## 2. Conformance
 
-**Rejected**
-- ANSI C89: a later language, and it adds prototypes and more types.
-- K&R plus extensions: the spec becomes harder to keep consistent.
-- Pre-1978 C: poorly documented, and the syntax is odd (`=+`).
+- A program is valid if it follows `grammar.md` and `semantics.md` for the stage being
+  compiled.
+- The compiler reports every error with line and column, and every warning, in source
+  order (C5, D5).
+- Where Appendix A says "machine-dependent" or "undefined", the choice is in `decisions.md`
+  (D6, D8, D11, D16, D19, D20).
+- Where the detailed sections and the A.18 summary disagree, the detailed sections win (D22).
+- Extensions and restrictions beyond the book: `\r` as a blank (D9), compound assignment as
+  single tokens (D18), pointer and integer mixing warnings (D21), strict struct operations
+  (D26), constant-expression operator list (D28), the identifier collision warning (D10).
 
-**Revisit when:** never for the target. Extensions would be a separate,
-labeled decision.
+## 3. Stages (D2)
 
----
+| Stage | Adds                                                                          | Examples that should work |
+|-------|-------------------------------------------------------------------------------|---------------------------|
+| 1     | `int`, `char`; all operators on them; `if`, `while`, `for`, `return`, `break`, `continue`, null and compound statements; old-style functions; `auto` `static` `extern` `register`; scalar initializers; implicit declarations; casts to `int` and `char`; `sizeof` | small arithmetic and loop programs, recursive functions |
+| 2     | pointers, arrays, string literals, subscripting, unary `*` and `&`, pointer arithmetic, brace initializers, type names with `*` `[ ]` `( )` | string handling, array programs, "hello, world" |
+| 3     | `struct`, `.` and `->`, tags, self-referential structures                     | linked structures, the `tnode` example |
+| 4     | `short`, `long`, `unsigned`, `float`, `double`, floating arithmetic           | floating-point programs |
+| 5     | `switch`, `case`, `default`, `do`, `goto`, labels, `union`, `typedef`, bit-fields | the remaining statements and type features |
+| 6     | the preprocessor: `#define`, `#undef`, `#include`, `#if`, `#ifdef`, `#ifndef`, `#else`, `#endif`, `#line` | programs that use macros and include files |
 
-## D2. Version 1 scope: staged
+The lexer is complete from the first stage. A construct from a later stage is reported as
+"not supported yet (stage N)" by the earliest phase that recognizes it.
 
-**Decision:**
-- Stage 1: `int`, `char`, expressions, `if`, `while`, `for`, functions.
-- Stage 2: pointers, arrays, string literals.
-- Later: `struct`, `float`/`double`, `long`/`short`/`unsigned`, `switch`, `do`,
-  `goto`, `union`, `typedef`, the preprocessor.
-- The lexer recognizes string and character literals from day one, even before
-  the parser accepts them.
+## 4. Scope by section of Appendix A
 
-**Reasons**
-- C1: a tiny pipeline that works end to end shows design mistakes while they
-  are cheap to fix.
-- C6: pointers and arrays force a real type representation, so stage 2 is
-  written into the spec now to avoid a type design that blocks it.
-- The book's hello world needs a string literal, so the lexer must handle it early.
+| A.   | Section                     | Status                                                   | Stage |
+|------|-----------------------------|----------------------------------------------------------|-------|
+| 1    | Introduction                | not a language rule                                      | —     |
+| 2    | Lexical conventions         | implemented in full: `lexical.md`                        | 1     |
+| 2.6  | Hardware characteristics    | model chosen: D6                                         | 1     |
+| 3    | Syntax notation             | notation of `grammar.md`: D14                            | —     |
+| 4    | Names: storage class, type  | `char`, `int`: stage 1; pointers, arrays: 2; `struct`: 3; `short`, `long`, `unsigned`, `float`, `double`: 4; `union`: 5 | 1 to 5 |
+| 5    | Objects and lvalues         | implemented                                              | 1     |
+| 6    | Conversions                 | 6.1, 6.6 for int: 1; 6.4: 2; 6.2, 6.3, 6.5: 4            | 1 to 4 |
+| 7.1  | Primary expressions         | identifiers, constants, parentheses, calls: 1; subscripts, strings: 2; `.` `->`: 3 | 1 to 3 |
+| 7.2  | Unary operators             | all but `*` `&`: 1; `*` `&`: 2                           | 1, 2  |
+| 7.3 to 7.15 | Binary, conditional, assignment, comma | implemented on int and char: 1; pointer forms: 2; floating forms: 4 | 1 to 4 |
+| 8.1  | Storage class specifiers    | `auto` `static` `extern` `register`: 1; `typedef`: 5     | 1, 5  |
+| 8.2  | Type specifiers             | `char` `int`: 1; others by stage; combinations: D15      | 1 to 5 |
+| 8.3, 8.4 | Declarators             | identifier, function, parentheses: 1; `*` `[ ]`: 2       | 1, 2  |
+| 8.5  | Structures and unions       | `struct`: 3; `union`, bit-fields: 5                      | 3, 5  |
+| 8.6  | Initialization              | scalar: 1; aggregate and string: 2; structure: 3         | 1 to 3 |
+| 8.7  | Type names                  | `int` `char`: 1; derived: 2                              | 1, 2  |
+| 8.8  | Typedef                     | stage 5; needs the parser to query the symbol table      | 5     |
+| 9.1 to 9.6, 9.9, 9.10, 9.13 | Expression, compound, `if`, `while`, `for`, `break`, `continue`, `return`, null | implemented | 1 |
+| 9.5  | `do`                        | stage 5                                                  | 5     |
+| 9.7  | `switch`                    | stage 5                                                  | 5     |
+| 9.8  | `break`                     | stage 1 in loops; in `switch` with stage 5               | 1, 5  |
+| 9.11, 9.12 | `goto`, labels        | stage 5                                                  | 5     |
+| 10   | External definitions        | implemented; old-style functions: D29                    | 1     |
+| 11   | Scope rules                 | implemented; typedef scope: stage 5                      | 1, 5  |
+| 12   | Compiler control lines      | the preprocessor: D27                                    | 6     |
+| 13   | Implicit declarations       | implemented: D25                                         | 1     |
+| 14   | Types revisited             | 14.1: 3; 14.2, 14.3: 2; 14.4: 2 and 4                    | 2 to 4 |
+| 15   | Constant expressions        | implemented: D28                                         | 1, 2  |
+| 16   | Portability considerations  | choices recorded: D6, D8, D11, D13, D19, D20             | —     |
+| 17   | Anachronisms                | not supported: D31                                       | —     |
+| 18   | Syntax summary              | reference only: D22                                      | —     |
 
-**Rejected**
-- Medium or large scope first: slow to a working pipeline, and large type work.
-- Minimal only, with no plan for stage 2: risks a type design that can't grow.
+## 5. Out of scope (not in K&R C 1978)
 
-**Revisit when:** stage 1 passes all its example programs.
+`void`, `const`, `volatile`, `signed`, `enum`, prototypes, `//` comments, `unsigned char`,
+`unsigned short`, `unsigned long`, adjacent-string joining, structure assignment and passing,
+`#elif`, `#pragma`, `defined()`, token pasting and stringizing in macros, trigraphs, wide
+characters, hexadecimal floating constants, the `u` and `f` suffixes, the `=op` operators.
 
----
+## 6. Open items
 
-## D3. Comments: `/* */` only
-
-**Decision:** Only `/* ... */` comments exist, and they do not nest.
-`//` has no special meaning: it lexes as two `/` operators and normally
-causes a parse error. An unterminated `/*` is a lexical error.
-
-**Reasons**
-- C2: `//` is not in K&R C, so accepting it would compile a different language.
-- C3: one comment form gives one simple, testable rule.
-- Accepting `//` would change the meaning of some valid K&R code, such as
-  `a //* x */ b`.
-
-**Rejected**
-- `//` as an extension: lowers fidelity and needs tests for both forms.
-- `//` behind a flag: extra code and two test modes that may never be used.
-
-**Revisit when:** you want a comfort extension. It would be its own decision,
-with the flag design written first.
-
----
-
-## D4. Identifier significance: full spelling, 8-character rule documented only
-
-**Decision:** All characters of an identifier are significant.
-The K&R limit (first 8 characters for internal names, fewer for external names;
-verify exact numbers in the book) is documented but not enforced.
-
-**Reasons**
-- C6: the symbol table keys on the full spelling, with no truncation logic.
-- Programs that don't rely on truncation behave the same either way.
-- The external-name limit concerns the linker, which doesn't apply if the
-  compiler's output is handed to a modern linker.
-
-**Rejected**
-- Silent truncation to 8: `counter_one` and `counter_two` collide with no message.
-- Truncate plus error on collision: stricter, but extra code for little benefit in v1.
-
-**Revisit when:** a book program depends on truncation, or when you add warnings.
-The most likely upgrade is a warning when two names differ only after position 8.
-
----
-
-## D5. Error reporting: collect lexical errors, stop before parsing
-
-**Decision:** The lexer records each error with line, column and message, and
-keeps scanning. If any lexical error was recorded, the error list is reported
-and the parser does not run.
-
-Recovery rules:
-- unrecognized character: skip that character,
-- unterminated string or character constant: skip to the end of the line,
-- malformed number: consume the whole bad literal,
-- unterminated comment: reaches end of file, so scanning stops.
-
-**Reasons**
-- C5: the user sees all lexical errors in one run.
-- C6: the parser only ever receives clean tokens, and the error-list structure
-  carries over to later phases.
-- C3: each recovery rule is a small, testable behavior.
-- Starting with fail-fast would mean restructuring the lexer later.
-
-**Rejected**
-- Fail fast: simplest, but one error per run and a later rewrite.
-- Collect everywhere with parser recovery: best experience, but the parser
-  needs synchronization rules that don't exist yet.
-
-**Revisit when:** the parser exists. Then decide whether to add parser-level
-recovery (synchronizing on `;` and `}`) and a shared error list across phases.
+| Item                                                  | Decided when                         |
+|-------------------------------------------------------|--------------------------------------|
+| code-generation target (assembly, VM, interpreter)    | before stage 2 code generation       |
+| layout details for structure and bit-field codegen    | stages 3 and 5                       |
+| exact text of semantic error messages                 | with the semantic phase              |
+| how book programs get `printf`, `getchar` and the like | when the target is chosen (they are library functions, not language) |
